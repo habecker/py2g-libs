@@ -4,8 +4,8 @@ from py2g_utils.progress import ProgressMetrics
 import random
 from time import sleep
 
-number_of_epochs = 5
-number_of_steps = 10000
+number_of_epochs = 20
+number_of_steps = 100
 mean = MeanMetrics()
 time = TimeMetrics()
 progress = ProgressMetrics()
@@ -22,7 +22,7 @@ for j in range(0, number_of_epochs):
         mean.add('result', result)
         mean.add('quality', quality)
         time.end('step')
-        progress.toConsole(main='step', every=500, other=[mean, time])
+        progress.toConsole(main='step', every=10, other=[mean, time])
         sleep(1./number_of_steps)
     progress.step(name='epoch')
     time.end('epoch')
