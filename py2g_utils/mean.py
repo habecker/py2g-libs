@@ -21,8 +21,6 @@ class MeanMetrics(object):
     def add(self, name, value):
         if name not in self.count:
             self.count[name] = 0
-        else:
-            self.count[name] += 1
         self._addWeighted(name, value)
     
     def reset(self, name):
