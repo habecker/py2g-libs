@@ -1,0 +1,9 @@
+- type: string
+  key: 'name'
+  validation:
+  - type: regex
+    expression: '^[a-zA-Z_0-9]{4,}$'
+  default: 'abcd'
+- type: path
+  key: 'input'
+  default: './samples/'

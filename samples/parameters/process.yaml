@@ -1,0 +1,12 @@
+- type: string
+  key: 'type'
+  validation:
+  - type: regex
+    expression: '^(typeA|typeB)$'
+  default: 'typeA'
+- type: int
+  key: 'int_field'
+  default: 0
+- type: list
+  key: 'except_types'
+  default: [0, 1, 2]
