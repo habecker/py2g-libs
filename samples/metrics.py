@@ -22,7 +22,7 @@ for j in range(0, number_of_epochs):
         mean.add('result', result)
         mean.add('quality', quality)
         time.end('step')
-        progress.toConsole(main='step', every=10, other=[mean, time])
+        progress.toConsole(main='step', every=20, other=[mean, time])
         sleep(1./number_of_steps)
     progress.step(name='epoch')
     time.end('epoch')

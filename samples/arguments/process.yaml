@@ -3,6 +3,7 @@
   validation:
   - type: regex
     expression: '^(typeA|typeB)$'
+  options: ['typeA', 'typeB']
   default: 'typeA'
 - type: int
   key: 'int_field'

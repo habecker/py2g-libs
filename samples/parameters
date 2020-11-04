@@ -1,6 +1,8 @@
+#!python3
 from py2g_utils.arguments import FileArgumentParser
+import os.path as osp
 
-parser = FileArgumentParser('./samples/parameters/base.yaml', './samples/parameters/process.yaml')
+parser = FileArgumentParser('./arguments/base.yaml', './arguments/process.yaml', basepath=osp.split(osp.abspath(__file__))[0])
 arguments = parser.parse()
 
 for key in arguments.keys():

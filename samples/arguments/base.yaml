@@ -7,3 +7,5 @@
 - type: path
   key: 'input'
   default: './samples/'
+- type: flag
+  key: 'with_images'

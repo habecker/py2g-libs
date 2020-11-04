@@ -1,26 +1,53 @@
 import yaml, os, re, sys, json
 
+ARGUMENT_PREFIX = '-'
+ARGUMENT_PREFIX_LEN = len(ARGUMENT_PREFIX)
+
 class ArgumentError(Exception): ...
+
+class ArgumentType(object):
+    def __init__(self, name, parser, converter, options):
+        self.name = name
+        self.parse = parser
+        self.convert = converter
+        self._options = options
+
+    def options(self, argument_config):
+        if 'options' in argument_config:
+            return argument_config['options']
+        options = []
+        if 'default' in argument_config:
+            default = argument_config['default']
+            if type(default) == list:
+                default = '\\"%s\\"' % json.dumps(default).replace(' ', '')
+            options.append(default)
+        intelli_options = self._options(argument_config)
+        options.extend(intelli_options)
+        return options
 
 class ArgumentParser(object):
     def __init__(self):
-        self.parsers = {}
-        self.converters = {}
+        self.types = {}
 
-    def add(self, type, parser, converter=lambda v: v):
-        assert type not in self.parsers
-        self.parsers[type] = parser
-        self.converters[type] = converter
+    def add(self, name, parser, converter=lambda v: v, options=lambda c: []):
+        assert name not in self.types
+        self.types[name] = ArgumentType(name, parser, converter, options)
+        return self.types[name]
 
-    def parse(self, type, value):
-        assert self.parsers[type](value)
-        return self.converters[type](value)
+    def parse(self, name, value):
+        assert self.types[name].parse(value)
+        return self.types[name].convert(value)
+    
+    def options(self, type, argument_config):
+        return self.types[type].options(argument_config)
 
 _argument_parser = ArgumentParser()
-_argument_parser.add('int', lambda value: value.isdigit(), lambda value: int(value))
-_argument_parser.add('string', lambda value: type(value) == str)
-_argument_parser.add('path', lambda value: type(value) == str and os.path.exists(value))
-_argument_parser.add('list', lambda value: type(value) == str, lambda value: json.loads(value))
+_argument_parser.add('int', lambda value: value.isdigit(), lambda value: int(value), lambda c: [0,1,2,3,4])
+_argument_parser.add('string', lambda value: type(value) == str, options=lambda c: os.listdir())
+_argument_parser.add('path', lambda value: type(value) == str and os.path.exists(value), options=lambda c: os.listdir())
+_argument_parser.add('list', lambda value: type(value) == str, converter=lambda value: json.loads(value))
+_argument_parser.add('flag', lambda value: value is None, converter=lambda value: True, options=lambda c: [])
+
 
 class ArgumentValidator(object):
     def __init__(self):
@@ -51,9 +78,11 @@ class Arguments(object):
         return object.__getattribute__(self, 'arguments').keys()
 
 class FileArgumentParser(object):
-    def __init__(self, *files, encoding='utf-8'):
+    def __init__(self, *files, encoding='utf-8', basepath=None):
         self.arguments = {}
         for fp in files:
+            if basepath is not None:
+                fp = os.path.join(basepath, fp)
             with open(fp, 'r', encoding=encoding) as f:
                 _keys = set()
                 for argument in yaml.safe_load(f):
@@ -66,23 +95,36 @@ class FileArgumentParser(object):
         _arguments = {}
         last_arg = None
         for arg in sys.argv[1:]:
-            if last_arg is None and arg[:2] != '--':
-                raise ArgumentError('{} has no argument to be assigned to'.format(arg[:2]))
-            if last_arg is not None and arg[:2] != '--':
+            if last_arg is None and arg[:ARGUMENT_PREFIX_LEN] != ARGUMENT_PREFIX:
+                raise ArgumentError('{} has no argument to be assigned to'.format(arg[:ARGUMENT_PREFIX_LEN]))
+            if last_arg is not None and arg[:ARGUMENT_PREFIX_LEN] != ARGUMENT_PREFIX:
                 _arguments[last_arg] = arg
                 last_arg = None
-            elif arg[:2] == '--':
-                last_arg = arg[2:]
+            elif arg[:ARGUMENT_PREFIX_LEN] == ARGUMENT_PREFIX:
+                last_arg = arg[ARGUMENT_PREFIX_LEN:]
                 _arguments[last_arg] = None
         return _arguments
+
+    def print_options(self, subargument):
+        if subargument is None:
+            for k,v in self.arguments.items():
+                print(ARGUMENT_PREFIX + "%s" % k)
+        else:
+            print('\n'.join(str(x) for x in _argument_parser.options(subargument['type'], subargument)))
 
     def parse(self):
         _arguments = self._get_arguments()
         arguments = Arguments()
-        _required_arguments = {k for k,v in self.arguments.items() if 'default' not in v}
-        _default_arguments = {k for k,v in self.arguments.items() if 'default' in v}
+        _required_arguments = {k for k,v in self.arguments.items() if 'default' not in v and v['type'] != 'flag'}
+        _default_arguments = {k for k,v in self.arguments.items() if 'default' in v or v['type'] == 'flag'}
 
         for k,v in _arguments.items():
+            if k == 'options':
+                if v is not None and v in self.arguments:
+                    self.print_options(self.arguments[v])
+                else:
+                    self.print_options(None)
+                exit(0)
             if k in self.arguments:
                 argument = self.arguments[k]
             else:
@@ -98,17 +140,13 @@ class FileArgumentParser(object):
             raise ArgumentError('Arguments {} required'.format(_required_arguments))
         
         for k in _default_arguments:
+            if self.arguments[k]['type'] == 'flag' and 'default' not in self.arguments[k]:
+                self.arguments[k]['default'] = False
+
             if k not in arguments.arguments:
                 arguments.set(k, self.arguments[k]['default'])
         
         return arguments
-        # argument = self.arguments[name]
-        # _argument_parser.parse(argument['type'], value)
-        # if 'validation' in argument:
-        #     for val in argument['validation']:
-        #         _argument_validator.validate(val, value)
-        # return value
-
 
 if __name__ == '__main__':
     parser = FileArgumentParser('./arguments/base.yaml')
