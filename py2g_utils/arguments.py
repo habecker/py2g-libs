@@ -30,9 +30,12 @@ class ArgumentParser(object):
         self.types = {}
 
     def add(self, name, parser, converter=lambda v: v, options=lambda c: []):
+        if type(name) == list:
+            for _name in name:
+                self.add(_name, parser, converter)
+            return
         assert name not in self.types
         self.types[name] = ArgumentType(name, parser, converter, options)
-        return self.types[name]
 
     def parse(self, name, value):
         assert self.types[name].parse(value)
@@ -42,12 +45,11 @@ class ArgumentParser(object):
         return self.types[type].options(argument_config)
 
 _argument_parser = ArgumentParser()
-_argument_parser.add('int', lambda value: value.isdigit(), lambda value: int(value), lambda c: [0,1,2,3,4])
-_argument_parser.add('string', lambda value: type(value) == str, options=lambda c: os.listdir())
+_argument_parser.add(['int', 'integer'], lambda value: value.isdigit(), lambda value: int(value), lambda c: [0,1,2,3,4])
+_argument_parser.add(['string', 'str'], lambda value: type(value) == str, options=lambda c: os.listdir())
 _argument_parser.add('path', lambda value: type(value) == str and os.path.exists(value), options=lambda c: os.listdir())
 _argument_parser.add('list', lambda value: type(value) == str, converter=lambda value: json.loads(value))
-_argument_parser.add('flag', lambda value: value is None, converter=lambda value: True, options=lambda c: [])
-
+_argument_parser.add(['boolean', 'bool', 'flag'], lambda value: value is None, converter=lambda value: True, options=lambda c: [])
 
 class ArgumentValidator(object):
     def __init__(self):
