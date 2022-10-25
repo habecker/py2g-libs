@@ -1,5 +1,6 @@
 import yaml, os, re, sys, json
 
+HELP_COMMAND = 'help'
 ARGUMENT_PREFIX = '-'
 ARGUMENT_PREFIX_LEN = len(ARGUMENT_PREFIX)
 
@@ -50,6 +51,8 @@ _argument_parser.add(['string', 'str'], lambda value: type(value) == str, option
 _argument_parser.add('path', lambda value: type(value) == str and os.path.exists(value), options=lambda c: os.listdir())
 _argument_parser.add('list', lambda value: type(value) == str, converter=lambda value: json.loads(value))
 _argument_parser.add(['boolean', 'bool', 'flag'], lambda value: value is None, converter=lambda value: True, options=lambda c: [])
+_argument_parser.add('float', lambda value: re.match(r'^-?\d+(?:\.\d+)?$', value) is not None, lambda value: float(value))
+
 
 class ArgumentValidator(object):
     def __init__(self):
@@ -64,6 +67,7 @@ class ArgumentValidator(object):
 
 _argument_validator = ArgumentValidator()
 _argument_validator.add('regex', lambda val, value: re.match(val['expression'], value))
+_argument_validator.add('max', lambda val, value: value <= float(val['max']))
 
 class Arguments(object):
     def __init__(self):
@@ -121,6 +125,16 @@ class FileArgumentParser(object):
         _default_arguments = {k for k,v in self.arguments.items() if 'default' in v or v['type'] == 'flag'}
 
         for k,v in _arguments.items():
+            if k == 'help':
+                for k, arg in self.arguments.items():
+                    print("Argument --%s {value}" % k)
+                    print("\ttype: %s" % arg["type"])
+                    if "default" in arg:
+                        print("\tdefault: %s" % arg["default"])
+                    if "validation" in arg:
+                        print("\tvalidation:")
+                        print("\t\t%s" % arg["validation"])
+                exit(0)
             if k == 'options':
                 if v is not None and v in self.arguments:
                     self.print_options(self.arguments[v])
