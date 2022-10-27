@@ -125,9 +125,9 @@ class FileArgumentParser(object):
         _default_arguments = {k for k,v in self.arguments.items() if 'default' in v or v['type'] == 'flag'}
 
         for k,v in _arguments.items():
-            if k == 'help':
+            if k == HELP_COMMAND:
                 for k, arg in self.arguments.items():
-                    print("Argument --%s {value}" % k)
+                    print("Argument -%s {value}" % k)
                     print("\ttype: %s" % arg["type"])
                     if "default" in arg:
                         print("\tdefault: %s" % arg["default"])
