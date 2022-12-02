@@ -1,10 +1,14 @@
-from typing import Callable, Any
+from typing import Callable, Optional
 import multiprocessing
 from random import shuffle
 
 class ParallelProcessing:
-    def __init__(self, num_processes:int, initializer:Callable, initargs:tuple, task:Callable, job:list, do_result:Callable):
-        self.pool = multiprocessing.Pool(processes=num_processes, initializer = initializer, initargs = initargs)
+    def __init__(self, num_processes:int, task:Callable, job:list, do_result:Callable, initializer:Optional[Callable] = None, initargs:Optional[tuple] = None ):
+        if initializer and initargs:
+            self.pool = multiprocessing.Pool(processes=num_processes, initializer = initializer, initargs = initargs)
+        else:
+            self.pool = multiprocessing.Pool(processes=num_processes)
+    
         self.initializer = initializer
         self.initargs = initargs
         self.task = task
@@ -23,7 +27,8 @@ class ParallelProcessing:
         self.completed = True
 
     def startSingleProcess(self):
-        self.initializer(*self.initargs)
+        if self.initializer and self.initargs:
+            self.initializer(*self.initargs)
         if self.completed:
             raise Exception('Job already done')
         for j in self.job:
