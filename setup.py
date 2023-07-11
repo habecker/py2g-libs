@@ -2,11 +2,12 @@
 
 from distutils.core import setup
 
-setup(name='py2g_utils',
+setup(name='py2g_libs',
       version='1.0.2',
-      description='Some python utilities',
+      description='Some python libs',
       author='Yannick Habecker',
       author_email='dev@y2g.de',
-      url='https://github.com/habecker/py2g-utils',
-      packages=['py2g_utils'],
+      url='https://github.com/habecker/py2g-libs',
+      packages=['py2g_libs'],
+      install_requires=['pyyaml']
      )

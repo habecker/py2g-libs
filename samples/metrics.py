@@ -1,6 +1,6 @@
-from py2g_utils.mean import MeanMetrics
-from py2g_utils.time import TimeMetrics
-from py2g_utils.progress import ProgressMetrics
+from py2g_libs.mean import MeanMetrics
+from py2g_libs.time import TimeMetrics
+from py2g_libs.progress import ProgressMetrics
 import random
 from time import sleep
 

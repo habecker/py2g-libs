@@ -1,5 +1,5 @@
 #!python3
-from py2g_utils.arguments import FileArgumentParser
+from py2g_libs.arguments import FileArgumentParser
 import os.path as osp
 
 parser = FileArgumentParser('./arguments/base.yaml', './arguments/process.yaml', basepath=osp.split(osp.abspath(__file__))[0])

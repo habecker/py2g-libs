@@ -1,13 +1,33 @@
-import yaml, os, re, sys, json
+import json
+import os
+import re
+import sys
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
+
+import yaml
 
 HELP_COMMAND = 'help'
+OPTIONS_COMMAND = 'options'
+
 ARGUMENT_PREFIX = '-'
 ARGUMENT_PREFIX_LEN = len(ARGUMENT_PREFIX)
+
+TODOTYPE = Any
+
+# TODO: add typed argument-config
+ArgumentConfig = Dict
 
 class ArgumentError(Exception): ...
 
 class ArgumentType(object):
-    def __init__(self, name, parser, converter, options):
+    T = TypeVar('T')
+
+    def __init__(self, 
+                 name: str, 
+                 parser: Callable[[str], bool],
+                 converter: Callable[[str], T],
+                 options: Callable[[TODOTYPE], TODOTYPE]
+                 ):
         self.name = name
         self.parse = parser
         self.convert = converter
@@ -30,7 +50,9 @@ class ArgumentParser(object):
     def __init__(self):
         self.types = {}
 
-    def add(self, name, parser, converter=lambda v: v, options=lambda c: []):
+    A = TypeVar('A', str, int, list, bool, float)
+    def add(self, name: Union[list, str], parser: Callable[[str], bool], converter: Callable[[str], A]=lambda v: v, options=lambda c: []):
+
         if type(name) == list:
             for _name in name:
                 self.add(_name, parser, converter)
@@ -38,12 +60,12 @@ class ArgumentParser(object):
         assert name not in self.types
         self.types[name] = ArgumentType(name, parser, converter, options)
 
-    def parse(self, name, value):
+    def parse(self, name: str, value: str):
         assert self.types[name].parse(value)
         return self.types[name].convert(value)
     
-    def options(self, type, argument_config):
-        return self.types[type].options(argument_config)
+    def options(self, name: str, argument_config: ArgumentConfig):
+        return self.types[name].options(argument_config)
 
 _argument_parser = ArgumentParser()
 _argument_parser.add(['int', 'integer'], lambda value: value.isdigit(), lambda value: int(value), lambda c: [0,1,2,3,4])
@@ -69,7 +91,7 @@ _argument_validator = ArgumentValidator()
 _argument_validator.add('regex', lambda val, value: re.match(val['expression'], value))
 _argument_validator.add('max', lambda val, value: value <= float(val['max']))
 
-class Arguments(object):
+class ParsedArguments(object):
     def __init__(self):
         object.__setattr__(self, 'arguments', {})
     def set(self, name, value):
@@ -83,9 +105,11 @@ class Arguments(object):
     def keys(self):
         return object.__getattribute__(self, 'arguments').keys()
 
+
 class FileArgumentParser(object):
     def __init__(self, *files, encoding='utf-8', basepath=None):
-        self.arguments = {}
+        self.arguments: Dict[str, ArgumentConfig] = {}
+
         for fp in files:
             if basepath is not None:
                 fp = os.path.join(basepath, fp)
@@ -93,11 +117,12 @@ class FileArgumentParser(object):
                 _keys = set()
                 for argument in yaml.safe_load(f):
                     if argument['key'] in _keys:
+                        # TODO: argument already exists
                         raise ''
                     self.arguments[argument['key']] = argument
                     _keys.add(argument['key'])
 
-    def _get_arguments(self):
+    def _get_argument_dict(self) -> Dict[str, str]:
         _arguments = {}
         last_arg = None
         for arg in sys.argv[1:]:
@@ -111,59 +136,65 @@ class FileArgumentParser(object):
                 _arguments[last_arg] = None
         return _arguments
 
-    def print_options(self, subargument):
-        if subargument is None:
-            for k,v in self.arguments.items():
+    def print_options_and_exit(self, subargument_name: Optional[str] = None):
+        subargument_config: ArgumentConfig = self.arguments[subargument_name] if subargument_name else None
+
+        if subargument_config is None:
+            for k, v in self.arguments.items():
                 print(ARGUMENT_PREFIX + "%s" % k)
         else:
-            print('\n'.join(str(x) for x in _argument_parser.options(subargument['type'], subargument)))
+            print('\n'.join(str(x) for x in _argument_parser.options(subargument_config.get('type'), subargument_config)))
+        
+        sys.exit(0)
+
 
     def parse(self):
-        _arguments = self._get_arguments()
-        arguments = Arguments()
-        _required_arguments = {k for k,v in self.arguments.items() if 'default' not in v and v['type'] != 'flag'}
-        _default_arguments = {k for k,v in self.arguments.items() if 'default' in v or v['type'] == 'flag'}
+        arguments = self._get_argument_dict()
+        parsed_arguments = ParsedArguments()
 
-        for k,v in _arguments.items():
-            if k == HELP_COMMAND:
-                for k, arg in self.arguments.items():
-                    print("Argument -%s {value}" % k)
-                    print("\ttype: %s" % arg["type"])
-                    if "default" in arg:
-                        print("\tdefault: %s" % arg["default"])
-                    if "validation" in arg:
-                        print("\tvalidation:")
-                        print("\t\t%s" % arg["validation"])
-                exit(0)
-            if k == 'options':
-                if v is not None and v in self.arguments:
-                    self.print_options(self.arguments[v])
-                else:
-                    self.print_options(None)
-                exit(0)
+        required_arguments = {k for k,v in self.arguments.items() if 'default' not in v and v['type'] != 'flag'}
+        default_arguments = {k for k,v in self.arguments.items() if 'default' in v or v['type'] == 'flag'}
+
+        if next(filter(lambda k: k == HELP_COMMAND, arguments.keys()), None):
+            self.print_help_and_exit()
+
+        if item := next(filter(lambda item: item[0] == OPTIONS_COMMAND, arguments.items()), None):
+            self.print_options_and_exit(item[1])
+
+
+        for k,v in arguments.items():
             if k in self.arguments:
                 argument = self.arguments[k]
             else:
                 raise ArgumentError('Unknown argument {}'.format(k))
+
             v = _argument_parser.parse(argument['type'], v)
+
             if 'validation' in argument:
                 for val in argument['validation']:
                     if not _argument_validator.validate(val, v):
                         raise ArgumentError("Validator of type {} failed for argument {}".format(val['type'], k))
-            arguments.set(k,v)
-            _required_arguments -= {k}
-        if len(_required_arguments) > 0:
-            raise ArgumentError('Arguments {} required'.format(_required_arguments))
+            parsed_arguments.set(k,v)
+            required_arguments -= {k}
+        if len(required_arguments) > 0:
+            raise ArgumentError('Arguments {} required'.format(required_arguments))
         
-        for k in _default_arguments:
+        for k in default_arguments:
             if self.arguments[k]['type'] == 'flag' and 'default' not in self.arguments[k]:
                 self.arguments[k]['default'] = False
 
-            if k not in arguments.arguments:
-                arguments.set(k, self.arguments[k]['default'])
+            if k not in parsed_arguments.arguments:
+                parsed_arguments.set(k, self.arguments[k]['default'])
         
-        return arguments
+        return parsed_arguments
 
-if __name__ == '__main__':
-    parser = FileArgumentParser('./arguments/base.yaml')
-    print(parser.parse().__dict__)
+    def print_help_and_exit(self):
+        for k, arg in self.arguments.items():
+            print("Argument -%s {value}" % k)
+            print("\ttype: %s" % arg["type"])
+            if "default" in arg:
+                print("\tdefault: %s" % arg["default"])
+            if "validation" in arg:
+                print("\tvalidation:")
+                print("\t\t%s" % arg["validation"])
+        sys.exit(0)
